@@ -1,0 +1,86 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: tensorflow-benchmarks
+spec:
+  slotsPerWorker: 1
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          volumes:
+          # Source: operator-created Secret with keys ssh-privatekey / ssh-publickey
+          - name: ssh-src
+            secret:
+              secretName: tensorflow-benchmarks-ssh
+          # Destination: writable place where we can chmod 600
+          - name: ssh-runtime
+            emptyDir: {}
+          initContainers:
+          - name: fix-key-mode
+            image: mpioperator/tensorflow-benchmarks:latest
+            command: ["/bin/sh","-lc"]
+            args:
+              - |
+                set -eu
+                mkdir -p /keys
+                # Secret projects private key as /src/ssh-privatekey by default
+                cp /src/ssh-privatekey /keys/id_rsa
+                chmod 600 /keys/id_rsa
+                ls -l /src /keys
+            volumeMounts:
+            - name: ssh-src
+              mountPath: /src
+              readOnly: true
+            - name: ssh-runtime
+              mountPath: /keys
+          containers:
+          - name: tensorflow-benchmarks
+            image: mpioperator/tensorflow-benchmarks:latest
+            env:
+            - name: HOME
+              value: /tmp
+            volumeMounts:
+            - name: ssh-runtime
+              mountPath: /keys
+            command: ["mpirun"]
+            args:
+              - "--allow-run-as-root"
+              - "-np"
+              - "1"
+              - "-mca"
+              - "plm_rsh_agent"
+              - "ssh -p 22 -l root -i /keys/id_rsa -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              - "-mca"
+              - "routed"
+              - "direct"
+              - "-hostfile"
+              - "/etc/mpi/hostfile"
+              - "-bind-to"
+              - "none"
+              - "-map-by"
+              - "slot"
+              - "-x"
+              - "NCCL_DEBUG=INFO"
+              - "-x"
+              - "LD_LIBRARY_PATH"
+              - "-x"
+              - "PATH"
+              - "python"
+              - "scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py"
+              - "--model=resnet101"
+              - "--batch_size=64"
+              - "--variable_update=horovod"
+    Worker:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - name: tensorflow-benchmarks
+            image: mpioperator/tensorflow-benchmarks:latest
+            resources:
+              limits:
+                nvidia.com/gpu: 1
