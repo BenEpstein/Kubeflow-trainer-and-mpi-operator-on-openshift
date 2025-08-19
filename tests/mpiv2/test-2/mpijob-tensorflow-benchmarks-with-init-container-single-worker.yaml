@@ -11,11 +11,12 @@ spec:
       replicas: 1
       template:
         spec:
+          serviceAccount: mpijob-escalated
           volumes:
           # Source: operator-created Secret with keys ssh-privatekey / ssh-publickey
           - name: ssh-src
             secret:
-              secretName: tensorflow-benchmarks-ssh
+              secretName: mpijob-test-2-ssh
           # Destination: writable place where we can chmod 600
           - name: ssh-runtime
             emptyDir: {}
@@ -78,6 +79,7 @@ spec:
       replicas: 1
       template:
         spec:
+          serviceAccount: mpijob-escalated
           containers:
           - name: tensorflow-benchmarks
             image: mpioperator/tensorflow-benchmarks:latest

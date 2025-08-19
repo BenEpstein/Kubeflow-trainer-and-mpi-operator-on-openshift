@@ -1,8 +1,7 @@
-# --- SCC: allow UID 0 (root); no extra caps added
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
-  name: restricted-v2-allow-root
+  name: custom-mpijob-allow-root
   annotations:
     kubernetes.io/description: "restricted-v2 clone that permits UID 0"
 allowPrivilegeEscalation: false
@@ -35,5 +34,6 @@ volumes:
   - persistentVolumeClaim
   - projected
   - secret
-users: []
+users:
+- system:serviceaccount:kubeflow-testing:mpijob-escalated
 groups: []

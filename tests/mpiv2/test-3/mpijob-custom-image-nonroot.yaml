@@ -22,7 +22,7 @@ spec:
             - mpirun
             args:
             - -np
-            - "2"
+            - "1"
             - -bind-to
             - none
             - -map-by
@@ -40,7 +40,7 @@ spec:
             - /usr/bin/python3
             - /scripts/mpi_torch.py  # Python script to be executed by the launcher
     Worker:
-      replicas: 2
+      replicas: 1
       template:
         spec:
           containers:
