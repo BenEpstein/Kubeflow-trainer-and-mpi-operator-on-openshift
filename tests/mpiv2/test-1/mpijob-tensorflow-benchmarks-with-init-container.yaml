@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
-  name: tensorflow-benchmarks
+  name: mpijob-test-1
 spec:
   slotsPerWorker: 1
   runPolicy:
