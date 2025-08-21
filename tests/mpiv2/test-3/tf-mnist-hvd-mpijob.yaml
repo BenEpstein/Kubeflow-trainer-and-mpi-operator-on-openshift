@@ -1,0 +1,59 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: tf-horovod-mnist
+spec:
+  slotsPerWorker: 1
+  sshAuthMountPath: /home/tfuser/.ssh
+  runPolicy:
+    cleanPodPolicy: None
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: launcher
+              image: <your-registry>/tf-hvd-mpi:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash","-lc"]
+              args:
+                - |
+                  set -euo pipefail
+                  # 2 processes total, 1 per worker (slotsPerWorker=1)
+                  mpirun -np 2 \
+                    --allow-run-as-root \
+                    -bind-to none -map-by slot \
+                    -x NCCL_DEBUG=INFO -x HOROVOD_LOG_LEVEL=INFO \
+                    -x LD_LIBRARY_PATH -x PATH \
+                    python /workspace/tf_mnist_hvd.py
+              securityContext:
+                runAsUser: 10001
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+          # optional: nodeSelector / tolerations here
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: worker
+              image: <your-registry>/tf-hvd-mpi:latest
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 22 # privileged port, but allowed via CAP_NET_BIND_SERVICE
+                  name: ssh
+              env:
+                - name: OMPI_MCA_btl_vader_single_copy_mechanism
+                  value: none
+              securityContext:
+                runAsUser: 10001
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["NET_BIND_SERVICE"]   # allow binding to 22 without root
