@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: use-mpi-v2-scc-kubeflow-testing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:mpi-v2   # this ClusterRole is auto-created for the SCC
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: kubeflow-testing
