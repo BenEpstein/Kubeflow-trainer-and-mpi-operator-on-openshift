@@ -15,7 +15,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: launcher
-              image: <your-registry>/tf-hvd-mpi:latest
+              image: docker.io/benepstein8/tf-hvd-mpi:v1
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash","-lc"]
               args:
@@ -42,7 +42,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: worker
-              image: <your-registry>/tf-hvd-mpi:latest
+              image: docker.io/benepstein8/tf-hvd-mpi:v1
               imagePullPolicy: IfNotPresent
               ports:
                 - containerPort: 22 # privileged port, but allowed via CAP_NET_BIND_SERVICE
