@@ -1,25 +1,32 @@
 # Dockerfile
-# Pick an NGC TensorFlow image recent enough for CUDA 12.x. Example tag:
-# nvcr.io/nvidia/tensorflow:24.08-tf2-py3  (check your registry access and tag)
-FROM nvcr.io/nvidia/tensorflow:24.08-tf2-py3
+FROM nvcr.io/nvidia/tensorflow:24.05-tf2-py3
 
 # Create a non-root user
 ARG USER=mpiuser
 ARG UID=10001
-RUN useradd -m -u ${UID} -s /bin/bash ${USER}
+ARG port=2222
+
+# Make apt resilient in locked-down networks:
+# - Force IPv4 to dodge IPv6 routing issues you saw in logs
+# - Retry a few times
+# - Switch any http sources to https (many proxies block port 80)
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
+ && echo 'Acquire::Retries "6";'      > /etc/apt/apt.conf.d/80retries \
+ && sed -i 's|http://|https://|g' /etc/apt/sources.list
 
 # Install OpenSSH server and Open MPI + build deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openssh-server openssh-client \
         openmpi-bin libopenmpi-dev \
-        python3-pip ca-certificates curl vim tini \
+        python3-pip ca-certificates curl vim tini libcap2-bin \
     && rm -rf /var/lib/apt/lists/*
 
 # Horovod (uses MPI controller; NCCL on GPUs if present)
 # The base image already has TF and CUDA libs.
 RUN pip install --no-cache-dir horovod[tensorflow,mpi]
 
-RUN mkdir -p /var/run/sshd /etc/ssh
+# Add capability to run sshd as non-root.
+RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/sbin/sshd
 
 # Allow OpenSSH to talk to containers without asking for confirmation
 # by disabling StrictHostKeyChecking.
@@ -27,31 +34,28 @@ RUN mkdir -p /var/run/sshd /etc/ssh
 # to disable UserKnownHostsFile to avoid write permissions.
 # Disabling StrictModes avoids directory and files read permission checks.
 RUN mkdir -p /var/run/sshd /etc/ssh \
-    && sed -i "s/[ #]\(.*StrictHostKeyChecking \).*/ \1no/g" /etc/ssh/ssh_config \
-    && echo "    UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config \
-    && sed -i "s/#\(StrictModes \).*/\1no/g" /etc/ssh/sshd_config \
-    && sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config \
+ && sed -i "s/[ #]\(.*StrictHostKeyChecking \).*/ \1no/g" /etc/ssh/ssh_config \
+ && echo "    UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config \
+ && sed -i "s/[ #]\(.*Port \).*/ \1$port/g" /etc/ssh/ssh_config \
+ && sed -i "s/#\(StrictModes \).*/\1no/g" /etc/ssh/sshd_config \
+ && sed -i "s/#\(Port \).*/\1$port/g" /etc/ssh/sshd_config
 
-
-# Allow sshd (a privileged port) as non-root via capability
-# This keeps the container non-root but lets sshd bind to 22.
-RUN apt-get update && apt-get install -y --no-install-recommends libcap2-bin && \
-    setcap 'cap_net_bind_service=+ep' /usr/sbin/sshd && \
-    rm -rf /var/lib/apt/lists/*
 
 # Copy training script
 WORKDIR /workspace
 COPY tf_mnist_hvd.py /workspace/tf_mnist_hvd.py
-RUN chown -R ${UID}:${UID} /workspace
+
+# Create mpiuser and home .ssh directory
+RUN useradd -m -u ${UID} -s /bin/bash ${USER} \
+ && mkdir -p /home/${USER}/.ssh \
+ && chown -R ${UID}:${UID} /workspace /home/${USER}
 
 # Switch to the non-root user
 USER ${UID}
 
-# Expose sshd
-EXPOSE 22
-
-# Configurations for running sshd as non-root.
+# Config for running sshd as non-root (custom config expects /etc/ssh host keys)
 COPY --chown=${USER} sshd_config /home/${USER}/.sshd_config
+RUN echo "Port $port" >> /home/mpiuser/.sshd_config
 
 # Start sshd in foreground (required for MPI operator); tini for signal handling
 ENTRYPOINT ["/usr/bin/tini", "--"]
