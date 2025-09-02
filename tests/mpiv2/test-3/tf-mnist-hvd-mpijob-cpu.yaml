@@ -1,0 +1,147 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: tf-horovod-mnist-cpu
+spec:
+  slotsPerWorker: 1
+  sshAuthMountPath: /home/mpiuser/.ssh
+  runPolicy:
+    cleanPodPolicy: Running
+  launcherCreationPolicy: WaitForWorkersReady
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: launcher
+              image: docker.io/benepstein8/tf-hvd-mpi:v1.3
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: CUDA_VISIBLE_DEVICES
+                  value: "-1"                # force CPU
+                - name: HOROVOD_CPU_OPERATIONS
+                  value: "MPI"               # use MPI for CPU collectives
+                - name: NCCL_DEBUG
+                  value: "WARN"              # quiet NCCL noise
+                - name: HOROVOD_LOG_LEVEL
+                  value: "DEBUG"
+                - name: OMPI_MCA_btl_vader_single_copy_mechanism
+                  value: "none"
+              command: ["/bin/bash","-lc"]
+              args:
+                - |
+                  set -euo pipefail
+
+                  echo "=== GPU / ENV VISIBILITY (launcher) ==="
+                  echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<unset>}"
+                  echo "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-<unset>}"
+                  ls -l /dev/nvidia* 2>/dev/null || echo "No /dev/nvidia* devices"
+                  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || echo "nvidia-smi not found"
+                  echo
+
+                  echo "=== MPI / Horovod versions (launcher) ==="
+                  command -v mpirun >/dev/null 2>&1 && mpirun --version || echo "mpirun not found"
+                  command -v ompi_info >/dev/null 2>&1 && ompi_info --version | head -n 5 || true
+                  python -c "import horovod.tensorflow as hvd; print('Horovod built with -> NCCL:', hvd.nccl_built(), ' MPI:', hvd.mpi_built())" || true
+                  python -c "import tensorflow as tf; print('TF sees GPUs:', tf.config.list_physical_devices('GPU'))" || true
+                  echo
+
+                  echo '=== starting mpirun (CPU) ==='
+                  mpirun -np 2 \
+                    -bind-to none -map-by slot \
+                    -x NCCL_DEBUG -x HOROVOD_LOG_LEVEL -x HOROVOD_CPU_OPERATIONS \
+                    -x CUDA_VISIBLE_DEVICES -x LD_LIBRARY_PATH -x PATH \
+                    -x OMPI_MCA_btl_vader_single_copy_mechanism \
+                    -mca pml ob1 -mca btl self,vader,tcp -mca btl_base_verbose 10 \
+                    python /workspace/tf_mnist_hvd.py
+
+                  echo
+                  echo "=== Horovod timeline (excerpt) ==="
+                  if [ -f /tmp/hvd_timeline.json ]; then
+                    grep -E '"name":\s*"(MPI(Allreduce|Allgather|Broadcast))"' -n /tmp/hvd_timeline.json | head || head -n 60 /tmp/hvd_timeline.json
+                  else
+                    echo "Timeline file not found (set HOROVOD_TIMELINE)."
+                  fi
+              securityContext:
+                runAsUser: 10001
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: worker
+              image: docker.io/benepstein8/tf-hvd-mpi:v1.3
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 2222
+                  name: ssh
+              env:
+                - name: CUDA_VISIBLE_DEVICES
+                  value: "-1"              # force CPU
+                - name: HOROVOD_CPU_OPERATIONS
+                  value: "MPI"
+                - name: NCCL_DEBUG
+                  value: "WARN"
+                - name: HOROVOD_LOG_LEVEL
+                  value: "DEBUG"
+                - name: OMPI_MCA_btl_vader_single_copy_mechanism
+                  value: "none"
+              securityContext:
+                runAsUser: 10001
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command: ["/bin/bash","-lc"]
+              args:
+                - |
+                  set -euo pipefail
+
+                  echo "=== DEBUG: identity ==="
+                  id && whoami
+                  echo
+
+                  echo "=== GPU / ENV VISIBILITY (worker) ==="
+                  echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<unset>}"
+                  echo "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-<unset>}"
+                  ls -l /dev/nvidia* 2>/dev/null || echo "No /dev/nvidia* devices"
+                  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || echo "nvidia-smi not found"
+                  python -c "import tensorflow as tf; print('TF sees GPUs:', tf.config.list_physical_devices('GPU'))" || true
+                  echo
+
+                  echo "=== DEBUG: listing /home/mpiuser/.ssh ==="
+                  ls -la /home/mpiuser/.ssh || true
+                  echo
+
+                  echo "=== DEBUG: perms (mode owner:group path) ==="
+                  for f in /home/mpiuser/.ssh /home/mpiuser/.ssh/*; do
+                    [ -e "$f" ] && stat -c '%A %U:%G %n' "$f" || true
+                  done
+                  echo
+
+                  echo "=== DEBUG: authorized_keys (first 2 lines) ==="
+                  if [ -f /home/mpiuser/.ssh/authorized_keys ]; then
+                    head -n 2 /home/mpiuser/.ssh/authorized_keys
+                  else
+                    echo "authorized_keys missing"
+                  fi
+                  echo
+
+                  echo "=== DEBUG: ~/.sshd_config ==="
+                  if [ -f /home/mpiuser/.sshd_config ]; then
+                    sed -n '1,200p' /home/mpiuser/.sshd_config
+                  else
+                    echo "~/.sshd_config missing"
+                  fi
+                  echo
+
+                  echo "=== Starting sshd ==="
+                  exec /usr/sbin/sshd -D -e -f /home/mpiuser/.sshd_config

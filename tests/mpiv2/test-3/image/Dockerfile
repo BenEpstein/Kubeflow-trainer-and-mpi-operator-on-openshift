@@ -25,9 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # The base image already has TF and CUDA libs.
 RUN pip install --no-cache-dir horovod[tensorflow,mpi]
 
-# Add capability to run sshd as non-root.
-RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/sbin/sshd
-
 # Allow OpenSSH to talk to containers without asking for confirmation
 # by disabling StrictHostKeyChecking.
 # mpi-operator mounts the .ssh folder from a Secret. For that to work, we need

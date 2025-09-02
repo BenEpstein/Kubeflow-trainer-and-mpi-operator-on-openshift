@@ -6,7 +6,8 @@ spec:
   slotsPerWorker: 1
   sshAuthMountPath: /home/mpiuser/.ssh
   runPolicy:
-    cleanPodPolicy: None
+    cleanPodPolicy: Running
+  launcherCreationPolicy: WaitForWorkersReady 
   mpiReplicaSpecs:
     Launcher:
       replicas: 1
@@ -15,7 +16,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: launcher
-              image: docker.io/benepstein8/tf-hvd-mpi:v1.2
+              image: docker.io/benepstein8/tf-hvd-mpi:v1.3
               imagePullPolicy: Always
               command: ["/bin/bash","-lc"]
               args:
@@ -23,7 +24,6 @@ spec:
                   set -euo pipefail
                   # 2 processes total, 1 per worker (slotsPerWorker=1)
                   mpirun -np 2 \
-                    --allow-run-as-root \
                     -bind-to none -map-by slot \
                     -x NCCL_DEBUG=INFO -x HOROVOD_LOG_LEVEL=INFO \
                     -x LD_LIBRARY_PATH -x PATH \
@@ -42,7 +42,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: worker
-              image: docker.io/benepstein8/tf-hvd-mpi:v1.2
+              image: docker.io/benepstein8/tf-hvd-mpi:v1.3
               imagePullPolicy: Always
               ports:
                 - containerPort: 2222
@@ -50,13 +50,17 @@ spec:
               env:
                 - name: OMPI_MCA_btl_vader_single_copy_mechanism
                   value: none
+              resources:
+                requests:
+                  nvidia.com/gpu: 1
+                limits:
+                  nvidia.com/gpu: 1
               securityContext:
                 runAsUser: 10001
                 runAsNonRoot: true
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop: ["ALL"]
-                  add: ["NET_BIND_SERVICE"]
               command: ["/bin/bash","-lc"]
               args:
                 - |
