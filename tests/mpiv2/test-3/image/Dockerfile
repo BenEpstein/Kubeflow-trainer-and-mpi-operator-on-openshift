@@ -18,15 +18,12 @@ RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openssh-server openssh-client \
         openmpi-bin libopenmpi-dev \
-        python3-pip ca-certificates curl vim tini libcap2-bin \
+        python3-pip ca-certificates curl vim tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Horovod (uses MPI controller; NCCL on GPUs if present)
 # The base image already has TF and CUDA libs.
 RUN pip install --no-cache-dir horovod[tensorflow,mpi]
-
-# Add capability to run sshd as non-root.
-RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/sbin/sshd
 
 # Allow OpenSSH to talk to containers without asking for confirmation
 # by disabling StrictHostKeyChecking.
