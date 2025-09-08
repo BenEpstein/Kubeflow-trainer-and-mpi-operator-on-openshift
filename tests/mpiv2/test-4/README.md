@@ -56,6 +56,7 @@ oc apply -f test-4/rolebinding.yaml
 oc apply -f test-4/torch-mnist-ddp-mpijob.yaml
 ```
 
+
 **Monitoring Execution**
 
 ```bash
