@@ -18,7 +18,7 @@ RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openssh-server openssh-client \
         openmpi-bin libopenmpi-dev \
-        python3-pip ca-certificates curl vim tini \
+        python3-pip ca-certificates curl vim tini libcap2-bin \
     && rm -rf /var/lib/apt/lists/*
 
 # Horovod (uses MPI controller; NCCL on GPUs if present)
