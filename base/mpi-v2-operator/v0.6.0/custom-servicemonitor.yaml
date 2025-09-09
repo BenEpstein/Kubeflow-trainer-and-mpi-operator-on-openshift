@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mpi-operator-monitor
+  namespace: mpi-operator
+spec:
+  endpoints:
+  - port: metrics
+    interval: 5s
+    path: /metrics
+  selector:
+    matchLabels:
+      app: mpi-operator
