@@ -56,7 +56,6 @@ oc apply -f test-4/rolebinding.yaml
 oc apply -f test-4/torch-mnist-ddp-mpijob.yaml
 ```
 
-
 **Monitoring Execution**
 
 ```bash
@@ -103,6 +102,7 @@ Key Features
 	•	Installed tools: openssh-server, mpi4py, torchvision
 	•	SSHD setup: Custom config on port 2222 for MPI Operator connectivity
 	•	Tini init process: Ensures clean process reaping inside container
+
 
 **PyTorch Training Script (torch_mnist_ddp.py)**
 

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mpi-operator-metrics-service
+  namespace: mpi-operator
+  labels:
+    app: mpi-operator
+spec:
+  selector:
+    app: mpi-operator
+  ports:
+  - name: metrics
+    port: 8888
+    targetPort: 8888
