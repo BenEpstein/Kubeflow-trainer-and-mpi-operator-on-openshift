@@ -4,15 +4,15 @@ This directory is a testing workspace for deploying and validating the MPI Opera
 
 ## Directory Structure
 
-- base/
+- `base/`
   Kustomize bases for core components (e.g., CRDs, operator subscriptions, RBAC). These are environment-agnostic building blocks that overlays compose.
 
-- overlays/
+- `overlays/`
   Environment- or cluster-specific Kustomize overlays that reference the bases and apply patches, namespaces, and settings for a particular cluster.
   - overlays/<cluster>/
     A concrete overlay for a target cluster (names, labels, image registries, and other cluster-specific settings go here).
 
-- tests/
+- `tests/`
   Self-contained examples that run against a target namespace to validate deployments and flows.
   - tests/<framework>/<test>/
     A framework-specific test (for example, mpiv2/test-1). Each test directory may include a namespace.yaml (or assume an existing namespace) and manifests/jobs to run.

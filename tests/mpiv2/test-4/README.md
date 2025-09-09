@@ -44,7 +44,7 @@ Prerequisites
 
 ## Running the Test
 
-Deploy all resources in the test-4 directory:
+**Deploy all resources in the test-4 directory:**
 
 ```bash
 # Deploy all test resources
@@ -56,7 +56,7 @@ oc apply -f test-4/rolebinding.yaml
 oc apply -f test-4/torch-mnist-ddp-mpijob.yaml
 ```
 
-Monitoring Execution
+**Monitoring Execution**
 
 ```bash
 # Check MPI job status
@@ -72,7 +72,7 @@ oc logs -f <launcher-pod-name>
 oc describe pod <pod-name>
 ```
 
-Cleanup
+**Cleanup**
 
 ```bash
 # Remove all test resources
@@ -86,7 +86,7 @@ oc delete mpijob torch-ddp-mnist
 
 The image/Dockerfile builds a container optimized for PyTorch DDP with MPI:
 
-Base Image
+**Base Image**
 
 ```bash
 FROM nvcr.io/nvidia/pytorch:24.05-py3
@@ -96,15 +96,18 @@ FROM nvcr.io/nvidia/pytorch:24.05-py3
 	•	Includes CUDA, cuDNN, NCCL, and HPC-X Open MPI
 
 Key Features
+
 	•	Non-root user (mpiuser, UID 10001) for OpenShift SCC compliance
 	•	HPC-X Open MPI pre-bundled in the base image
 	•	Installed tools: openssh-server, mpi4py, torchvision
 	•	SSHD setup: Custom config on port 2222 for MPI Operator connectivity
 	•	Tini init process: Ensures clean process reaping inside container
 
-PyTorch Training Script (torch_mnist_ddp.py)
+
+**PyTorch Training Script (torch_mnist_ddp.py)**
 
 Features
+
 	•	Distributed setup: Initializes PyTorch process groups using nccl (GPU) or gloo (CPU)
 	•	DDP model wrapping: Ensures gradient synchronization across workers
 	•	Distributed samplers: Ensures each rank processes unique dataset partitions
@@ -112,15 +115,17 @@ Features
 	•	Debug info: Prints rank, world size, hostname, and CUDA availability
 
 Training Flow
+
 	1.	Initialize distributed environment (init_distributed())
 	2.	Load MNIST dataset with DistributedSampler
 	3.	Train for 3 epochs with Adam optimizer
 	4.	Evaluate accuracy across all workers (synchronized metrics)
 	5.	Destroy process group and exit cleanly
 
-Security Context Constraints (SCC)
+**Security Context Constraints (SCC)**
 
 The scc.yaml is the same as used in Test-3 (TensorFlow Horovod):
+
 	•	Runs as non-root (runAsUser: 10001)
 	•	Disables privilege escalation
 	•	Drops all Linux capabilities
