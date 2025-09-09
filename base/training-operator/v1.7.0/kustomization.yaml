@@ -5,3 +5,16 @@ resources:
 patches:
 - path: patches/disable-mpi-v1.yaml
 - path: patches/delete-mpijobs-crd.yaml
+- target:
+    kind: Deployment
+    name: training-operator
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/resources
+      value:
+        requests:
+          cpu: "1"
+          memory: "2Gi"
+        limits:
+          cpu: "4"
+          memory: "2Gi"
